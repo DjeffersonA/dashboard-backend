@@ -72,6 +72,10 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASE_ROUTERS = ['backend.routers.DatabaseRouter']
 
+CORS_ALLOWED_ORIGINS = [
+    'http://34.74.40.232:3000',
+]
+
 DATABASES = {
     # Banco de dados (permissão read-only)
     'default': {
