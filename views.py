@@ -44,39 +44,40 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
             return date_obj.strftime("%d-%m-%Y")
         return None
 
+    # Planilha para verificação manual de possíveis irregularidades
     def list(self, request, *args, **kwargs):
-        import_param = request.query_params.get('import', '1')
+       import_param = request.query_params.get('import', '1')
 
-        response = super().list(request, *args, **kwargs)
+       response = super().list(request, *args, **kwargs)
 
-        if import_param == '1':
-            gc = authSheets()
-            sheet = gc.open_by_key("1WOeOBWwDumY5hIF1zgkDm-lw6DtjpqQBj6g8sfF38uk")
-            worksheet = sheet.worksheet("DASHBOARD")
+       if import_param == '1':
+           gc = authSheets()
+           sheet = gc.open_by_key("1WOeOBWwDumY5hIF1zgkDm-lw6DtjpqQBj6g8sfF38uk")
+           worksheet = sheet.worksheet("DASHBOARD")
 
-            header = [
-                "ID Financeiro", "Matrícula", "Nome do Aluno", "CPF", "Telefone", "Email",
-                "CNPJ Unidade", "Razão Social", "Formato", "Curso", "Período", 
-                "Valor Mensalidade", "Data de Vencimento", "Valor Pago", 
-                "Data de Pagamento", "Tipo de Parcela", "Tipo", "Número da Parcela", 
-                "Situação do Contrato"
-            ]
+           header = [
+               "ID Financeiro", "Matrícula", "Nome do Aluno", "CPF", "Telefone", "Email",
+               "CNPJ Unidade", "Razão Social", "Formato", "Curso", "Período", 
+               "Valor Mensalidade", "Data de Vencimento", "Valor Pago", 
+               "Data de Pagamento", "Tipo de Parcela", "Tipo", "Número da Parcela", 
+               "Situação do Contrato"
+           ]
 
-            worksheet.clear()
-            worksheet.append_row(header, value_input_option="RAW")
+           worksheet.clear()
+           worksheet.append_row(header, value_input_option="RAW")
 
-            formatted_data = []
-            for item in response.data['results']:
-                formatted_data.append([
-                    item.get("id_financeiro"),
-                    item.get("matricula"),
-                    item.get("nome_aluno"),
-                    item.get("cpf"),
-                    item.get("telefone"),
-                    item.get("email"),
-                    item.get("cnpj_unidade"),
+           formatted_data = []
+           for item in response.data['results']:
+               formatted_data.append([
+                   item.get("id_financeiro"),
+                   item.get("matricula"),
+                   item.get("nome_aluno"),
+                   item.get("cpf"),
+                   item.get("telefone"),
+                   item.get("email"),
+                   item.get("cnpj_unidade"),
                     item.get("razao_social"),
-                    item.get("formato"),
+                   item.get("formato"),
                     item.get("curso"),
                     item.get("periodo"),
                     item.get("valor_mensalidade"),
@@ -89,9 +90,9 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
                     item.get("situacao_contrato"),
                 ])
 
-            worksheet.append_rows(formatted_data, value_input_option="RAW")
+           worksheet.append_rows(formatted_data, value_input_option="RAW")
 
-        return response
+       return response
 
 class ContasAPagarView(APIView):
     permission_classes = (IsAuthenticated,)
@@ -102,4 +103,7 @@ class ContasAPagarView(APIView):
         worksheet = sheet.worksheet("Looker")
         data = worksheet.get_all_records()
         
+        data_inicio = request.query_params.get('data_inicio')
+        data_fim = request.query_params.get('data_fim')
+
         return Response(data)
