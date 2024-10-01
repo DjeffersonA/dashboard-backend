@@ -11,6 +11,9 @@ from .authSheets import authSheets
 from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 class ContasAReceberPagination(PageNumberPagination):
     page_size = 10000
@@ -28,13 +31,8 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
     filterset_class = ContasAReceberFilter
 
     def format_date(self, date_str):
-        """
-        Converte uma string de data no formato ISO para o formato dd-mm-yyyy.
-        Lida com diferentes formatos de data, incluindo milissegundos.
-        """
         if date_str:
             try:
-                # Tenta converter a data com milissegundos
                 date_obj = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S.%f")
             except ValueError:
                 try:
@@ -43,41 +41,46 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
                     return date_str
             return date_obj.strftime("%d-%m-%Y")
         return None
-
-    # Planilha para verificação manual de possíveis irregularidades
+    
+    @method_decorator(cache_page(60*15))  # Cache de 15 minutos
     def list(self, request, *args, **kwargs):
-       import_param = request.query_params.get('import', '1')
+        cache_key = f"contasareceber_{request.query_params}"
+        response_data = cache.get(cache_key)
 
-       response = super().list(request, *args, **kwargs)
+        if response_data is None:
+            response = super().list(request, *args, **kwargs)
+            cache.set(cache_key, response.data, timeout=60*15)  # Cache de 15 minutos
+            response_data = response.data
 
-       if import_param == '1':
-           gc = authSheets()
-           sheet = gc.open_by_key("1WOeOBWwDumY5hIF1zgkDm-lw6DtjpqQBj6g8sfF38uk")
-           worksheet = sheet.worksheet("DASHBOARD")
+        import_param = request.query_params.get('import', '1')
+        if import_param == '1':
+            gc = authSheets()
+            sheet = gc.open_by_key("1WOeOBWwDumY5hIF1zgkDm-lw6DtjpqQBj6g8sfF38uk")
+            worksheet = sheet.worksheet("DASHBOARD")
+            
+            header = [
+                "ID Financeiro", "Matrícula", "Nome do Aluno", "CPF", "Telefone", "Email",
+                "CNPJ Unidade", "Razão Social", "Formato", "Curso", "Período", 
+                "Valor Mensalidade", "Data de Vencimento", "Valor Pago", 
+                "Data de Pagamento", "Tipo de Parcela", "Tipo", "Número da Parcela", 
+                "Situação do Contrato"
+            ]
 
-           header = [
-               "ID Financeiro", "Matrícula", "Nome do Aluno", "CPF", "Telefone", "Email",
-               "CNPJ Unidade", "Razão Social", "Formato", "Curso", "Período", 
-               "Valor Mensalidade", "Data de Vencimento", "Valor Pago", 
-               "Data de Pagamento", "Tipo de Parcela", "Tipo", "Número da Parcela", 
-               "Situação do Contrato"
-           ]
+            worksheet.clear()
+            worksheet.append_row(header, value_input_option="RAW")
 
-           worksheet.clear()
-           worksheet.append_row(header, value_input_option="RAW")
-
-           formatted_data = []
-           for item in response.data['results']:
-               formatted_data.append([
-                   item.get("id_financeiro"),
-                   item.get("matricula"),
-                   item.get("nome_aluno"),
-                   item.get("cpf"),
-                   item.get("telefone"),
-                   item.get("email"),
-                   item.get("cnpj_unidade"),
+            formatted_data = []
+            for item in response_data['results']:
+                formatted_data.append([
+                    item.get("id_financeiro"),
+                    item.get("matricula"),
+                    item.get("nome_aluno"),
+                    item.get("cpf"),
+                    item.get("telefone"),
+                    item.get("email"),
+                    item.get("cnpj_unidade"),
                     item.get("razao_social"),
-                   item.get("formato"),
+                    item.get("formato"),
                     item.get("curso"),
                     item.get("periodo"),
                     item.get("valor_mensalidade"),
@@ -90,20 +93,28 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
                     item.get("situacao_contrato"),
                 ])
 
-           worksheet.append_rows(formatted_data, value_input_option="RAW")
+            worksheet.append_rows(formatted_data, value_input_option="RAW")
 
-       return response
-
+        return Response(response_data)
+    
 class ContasAPagarView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, *args, **kwargs):
-        gc = authSheets()
-        sheet = gc.open_by_key("1fbWfjEo5jmi9FeNtYyYo_IK6J-zojbwervOATmi56_8")
-        worksheet = sheet.worksheet("Looker")
-        data = worksheet.get_all_records()
-        
         data_inicio = request.query_params.get('data_inicio')
         data_fim = request.query_params.get('data_fim')
 
-        return Response(data)
+        cache_key = f"contasapagar_{data_inicio}_{data_fim}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data is None:
+            gc = authSheets()
+            sheet = gc.open_by_key("1fbWfjEo5jmi9FeNtYyYo_IK6J-zojbwervOATmi56_8")
+            worksheet = sheet.worksheet("Looker")
+            data = worksheet.get_all_records()
+            
+            # Cache de 15 minutos
+            cache.set(cache_key, data, timeout=60*15)
+            cached_data = data
+
+        return Response(cached_data)
