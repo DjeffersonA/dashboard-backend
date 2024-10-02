@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+import threading
 
 class ContasAReceberPagination(PageNumberPagination):
     page_size = 10000
@@ -42,15 +43,17 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
             return date_obj.strftime("%d-%m-%Y")
         return None
     
-    @method_decorator(cache_page(60*15))  # Cache de 15 minutos
+    @method_decorator(cache_page(60*60*24))  # Cache de 1 dia, atualizando
     def list(self, request, *args, **kwargs):
         cache_key = f"contasareceber_{request.query_params}"
         response_data = cache.get(cache_key)
 
         if response_data is None:
             response = super().list(request, *args, **kwargs)
-            cache.set(cache_key, response.data, timeout=60*15)  # Cache de 15 minutos
+            cache.set(cache_key, response.data, timeout=60*60*24)  # Cache de 1 dia
             response_data = response.data
+        else:
+            threading.Thread(target=lambda: self.refresh_cache(request, cache_key, *args, **kwargs)).start()
 
         import_param = request.query_params.get('import', '1')
         if import_param == '1':
@@ -96,6 +99,10 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
             worksheet.append_rows(formatted_data, value_input_option="RAW")
 
         return Response(response_data)
+    
+    def refresh_cache(self, request, cache_key, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        cache.set(cache_key, response.data, timeout=60*60*24)  # Cache de 1 dia
     
 class ContasAPagarView(APIView):
     permission_classes = (IsAuthenticated,)
