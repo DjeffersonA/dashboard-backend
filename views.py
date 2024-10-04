@@ -111,17 +111,43 @@ class ContasAPagarView(APIView):
         data_inicio = request.query_params.get('data_inicio')
         data_fim = request.query_params.get('data_fim')
 
-        cache_key = f"contasapagar_{data_inicio}_{data_fim}"
-        cached_data = cache.get(cache_key)
+        if data_inicio:
+            data_inicio = data_inicio.replace('-', '/')
+        if data_fim:
+            data_fim = data_fim.replace('-', '/')
 
-        if cached_data is None:
-            gc = authSheets()
-            sheet = gc.open_by_key("1fbWfjEo5jmi9FeNtYyYo_IK6J-zojbwervOATmi56_8")
-            worksheet = sheet.worksheet("Looker")
-            data = worksheet.get_all_records()
-            
-            # Cache de 15 minutos
-            cache.set(cache_key, data, timeout=60*15)
-            cached_data = data
+        start_date = datetime.strptime(data_inicio, "%d/%m/%Y") if data_inicio else None
+        end_date = datetime.strptime(data_fim, "%d/%m/%Y") if data_fim else None
 
-        return Response(cached_data)
+        sheet_keys = [
+            "1fbWfjEo5jmi9FeNtYyYo_IK6J-zojbwervOATmi56_8",
+            "1iiz5IzrHMxfYRFBcp-0145_LVBZRObpMaOvMv1L46xQ"
+        ]
+        
+        all_data = []
+
+        for key in sheet_keys:
+            cache_key = f"contasapagar_{key}_{data_inicio}_{data_fim}"
+            cached_data = cache.get(cache_key)
+
+            if cached_data is None:
+                gc = authSheets()
+                sheet = gc.open_by_key(key)
+                worksheet = sheet.worksheet("Looker")
+                data = worksheet.get_all_records()
+
+                # Cache de 15 minutos
+                cache.set(cache_key, data, timeout=60*15)
+                cached_data = data
+
+            all_data.extend(cached_data) 
+
+        if start_date and end_date:
+            filtered_data = [
+                item for item in all_data
+                if 'Data' in item and item['Data'] != "" and start_date <= datetime.strptime(item['Data'], "%d/%m/%Y") <= end_date
+            ]
+        else:
+            filtered_data = all_data
+
+        return Response(filtered_data)
