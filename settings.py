@@ -93,6 +93,15 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'auth_db.sqlite3',
     },
+    # Banco de dados para armazenar dados do Meta Ads
+    'meta_ads_db': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('META_DB_NAME'),
+        'USER': env('META_DB_USER'),
+        'PASSWORD': env('META_DB_PASSWORD'),
+        'HOST': env('META_DB_HOST'),
+        'PORT': env('META_DB_PORT'),
+    },
 }
 
 AUTH_PASSWORD_VALIDATORS = [

@@ -12,6 +12,8 @@ class RedirectToAdminMiddleware:
                 request.path.startswith('/api/ContasAReceber/') and request.GET.get('format') == 'json'
             ) or (
                 request.path.startswith('/api/ContasAPagar/') and request.GET.get('format') == 'json'
+            ) or (
+                request.path.startswith('/api/MetaAds/') and request.GET.get('format') == 'json'
             ):
                 return self.get_response(request)
             return redirect('/admin/')

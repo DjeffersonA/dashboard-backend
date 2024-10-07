@@ -1,9 +1,9 @@
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Contas_Receber_Fgi
-from .serializers import ContasAReceberSerializer
-from .filters import ContasAReceberFilter
+from .models import Contas_Receber_Fgi, MetaAdsData
+from .serializers import ContasAReceberSerializer, MetaAdsSerializer
+from .filters import ContasAReceberFilter, MetaAdsFilter
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 import gspread
@@ -15,11 +15,75 @@ from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 import threading
+import requests
+import environ, os
+from pathlib import Path
 
-class ContasAReceberPagination(PageNumberPagination):
+BASE_DIR = Path(__file__).resolve().parent.parent
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
+class Pagination(PageNumberPagination):
     page_size = 10000
     page_size_query_param = 'page_size'
     max_page_size = 100000
+
+class MetaAdsViewSet(viewsets.ModelViewSet):
+    permission_classes = (IsAuthenticated,)
+    queryset = MetaAdsData.objects.all().order_by('date_start')
+    serializer_class = MetaAdsSerializer
+    pagination_class = Pagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = MetaAdsFilter
+
+    def request_rep(self):
+        all_data = [] 
+        
+        url = (
+            f"https://graph.facebook.com/v20.0/act_{env('FB_AD_ACCOUNT_ID')}/insights"
+            f"?level={env('FB_LEVEL')}&fields={env('FB_FIELDS')}&time_increment=1"
+            f"&date_preset=this_month"
+            f"&access_token={env('FB_TOKEN')}"
+        )
+
+        while url:
+            response = requests.get(url)
+            response.raise_for_status()
+
+            data = response.json()
+            all_data.extend(item for item in data.get('data', []) if item.get('campaign_name') or item.get('adset_name'))
+            url = data.get('paging', {}).get('next')
+
+        return all_data
+    
+    def import_db(self, data):
+        for row in data:
+            MetaAdsData.objects.update_or_create(
+                campaign_name=row['campaign_name'],
+                adset_name=row['adset_name'],
+                date_start=row['date_start'],
+                date_stop=row['date_stop'],
+                defaults={'spend': row['spend']},
+            )
+    
+    @method_decorator(cache_page(60*60*24))
+    def list(self, request, *args, **kwargs):
+        cache_key = f"metaads_{request.query_params}"
+        response_data = cache.get(cache_key)
+
+        if response_data is None:
+            response = super().list(request, *args, **kwargs)
+            cache.set(cache_key, response.data, timeout=60*60*24)  # Cache de 1 dia
+            response_data = response.data
+        else:
+            threading.Thread(target=lambda: self.refresh_cache(request, cache_key, *args, **kwargs)).start()
+        
+        return Response(response_data)
+    
+    def refresh_cache(self, request, cache_key, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        cache.set(cache_key, response.data, timeout=60*60*24)  # Cache de 1 dia
+        
 
 class ContasAReceberViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated,)
@@ -27,7 +91,7 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
         Q(data_pagamento__isnull=True) | ~Q(data_pagamento='1900-01-01')
     ).order_by('data_vencimento')
     serializer_class = ContasAReceberSerializer
-    pagination_class = ContasAReceberPagination
+    pagination_class = Pagination
     filter_backends = [DjangoFilterBackend]
     filterset_class = ContasAReceberFilter
 

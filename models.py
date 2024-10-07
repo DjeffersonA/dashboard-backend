@@ -24,3 +24,18 @@ class Contas_Receber_Fgi(models.Model):
     class Meta:
         db_table = 'Contas_Receber_Fgi'
         managed = False
+
+class MetaAdsData(models.Model):
+    campaign_name = models.CharField(max_length=255, verbose_name="Campanha")
+    adset_name = models.CharField(max_length=255, verbose_name="Conjunto de Anúncios")
+    spend = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor Gasto")
+    date_start = models.DateField(verbose_name="Data de Início")
+    date_stop = models.DateField(verbose_name="Data de Fim")
+
+    class Meta:
+        db_table = 'meta_ads_data'
+        verbose_name = "Dados do Meta Ads"
+        verbose_name_plural = "Dados do Meta Ads"
+    
+    def __str__(self):
+        return f'{self.campaign_name} - {self.adset_name}'
