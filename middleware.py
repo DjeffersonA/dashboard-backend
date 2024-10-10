@@ -1,6 +1,4 @@
 from django.shortcuts import redirect
-from django.contrib.auth.decorators import login_required
-from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 class RedirectToAdminMiddleware:
     def __init__(self, get_response):

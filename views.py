@@ -6,7 +6,6 @@ from .serializers import ContasAReceberSerializer, MetaAdsSerializer
 from .filters import ContasAReceberFilter, MetaAdsFilter
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
-import gspread
 from .authSheets import authSheets
 from datetime import datetime
 from rest_framework.views import APIView
@@ -66,14 +65,17 @@ class MetaAdsViewSet(viewsets.ModelViewSet):
                 defaults={'spend': row['spend']},
             )
     
-    @method_decorator(cache_page(60*60*24))
+    @method_decorator(cache_page(60*60*6))
     def list(self, request, *args, **kwargs):
+        data = self.request_rep()
+        self.import_db(data)
+        
         cache_key = f"metaads_{request.query_params}"
         response_data = cache.get(cache_key)
 
         if response_data is None:
             response = super().list(request, *args, **kwargs)
-            cache.set(cache_key, response.data, timeout=60*60*24)  # Cache de 1 dia
+            cache.set(cache_key, response.data, timeout=60*60*6)  # Cache de 6 horas
             response_data = response.data
         else:
             threading.Thread(target=lambda: self.refresh_cache(request, cache_key, *args, **kwargs)).start()
@@ -82,7 +84,7 @@ class MetaAdsViewSet(viewsets.ModelViewSet):
     
     def refresh_cache(self, request, cache_key, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
-        cache.set(cache_key, response.data, timeout=60*60*24)  # Cache de 1 dia
+        cache.set(cache_key, response.data, timeout=60*60*6)  # Cache de 6 horas
         
 
 class ContasAReceberViewSet(viewsets.ModelViewSet):
@@ -107,7 +109,7 @@ class ContasAReceberViewSet(viewsets.ModelViewSet):
             return date_obj.strftime("%d-%m-%Y")
         return None
     
-    @method_decorator(cache_page(60*60*24))  # Cache de 1 dia, atualizando
+    @method_decorator(cache_page(60*60*24))  # Cache de 1 dia
     def list(self, request, *args, **kwargs):
         cache_key = f"contasareceber_{request.query_params}"
         response_data = cache.get(cache_key)

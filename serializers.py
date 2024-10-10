@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import Contas_Receber_Fgi
-from .models import MetaAdsData
+from .models import Contas_Receber_Fgi, MetaAdsData
 
 class ContasAReceberSerializer(serializers.ModelSerializer):
     class Meta:

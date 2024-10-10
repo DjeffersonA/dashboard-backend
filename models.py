@@ -1,4 +1,4 @@
-from django.db import models # type: ignore
+from django.db import models
 
 class Contas_Receber_Fgi(models.Model):
     id_financeiro = models.IntegerField(db_column='Id_Financeiro', primary_key=True)
